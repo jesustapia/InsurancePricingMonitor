@@ -1,6 +1,6 @@
 """
 Collector de Interseguro — Vida Cash Devolución.
-Google Cloud Function — no requiere sesión, usa DNI ficticio.
+Headers exactos extraídos del HAR de sesión real.
 """
 import httpx
 from core.models import Cotizacion, Perfil
@@ -11,11 +11,19 @@ COMPETIDOR     = "Interseguro"
 PRODUCTO       = "Vida Cash Devolución"
 TC             = 3.5
 PCT_DEVOLUCION = 145
-HEADERS        = {
-    "Content-Type": "application/json",
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    "Origin": "https://www.interseguro.pe",
-    "Referer": "https://www.interseguro.pe/seguro-de-vida/vida-cash-plus/paso/cotiza",
+HEADERS = {
+    "accept": "application/json, text/plain, */*",
+    "accept-language": "es-ES,es;q=0.9",
+    "content-type": "application/json",
+    "origin": "https://www.interseguro.pe",
+    "referer": "https://www.interseguro.pe/",
+    "sec-ch-ua": '"Google Chrome";v="147", "Not.A/Brand";v="8", "Chromium";v="147"',
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": '"Windows"',
+    "sec-fetch-dest": "empty",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "cross-site",
+    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36",
 }
 
 async def cotizar_interseguro(perfil: Perfil) -> Cotizacion:
