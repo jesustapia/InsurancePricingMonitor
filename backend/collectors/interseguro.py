@@ -1,26 +1,22 @@
 """
 Collector de Interseguro — Vida Cash Devolución.
-
-Flujo simplificado (2 pasos):
-  1. GET token JWT  → token_generate_prod
-  2. POST cotización → data_gateway_prod/gateway con Bearer token
+Sin token — headers exactos del HAR exitoso.
 """
 import httpx
 from core.models import Cotizacion, Perfil
 
-BASE_URL       = "https://us-east4-interseguro-vida.cloudfunctions.net"
-TOKEN_URL      = f"{BASE_URL}/token_generate_prod?product=VIDACASH&channel=WE"
-GATEWAY_URL    = f"{BASE_URL}/data_gateway_prod/gateway"
-
+GATEWAY_URL    = "https://us-east4-interseguro-vida.cloudfunctions.net/data_gateway_prod/gateway"
 COMPETIDOR     = "Interseguro"
 PRODUCTO       = "Vida Cash Devolución Plus"
 TC             = 3.5
 PCT_DEVOLUCION = 125
 DNI_FICTICIO   = "999999999"
 
-BROWSER_HEADERS = {
+HEADERS = {
     "accept": "application/json, text/plain, */*",
+    "accept-encoding": "gzip, deflate, br",
     "accept-language": "es-ES,es;q=0.9",
+    "content-type": "application/json",
     "origin": "https://www.interseguro.pe",
     "referer": "https://www.interseguro.pe/",
     "sec-ch-ua": '"Google Chrome";v="147", "Not.A/Brand";v="8", "Chromium";v="147"',
@@ -32,46 +28,27 @@ BROWSER_HEADERS = {
     "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36",
 }
 
-
-async def _get_token(client: httpx.AsyncClient) -> str:
-    resp = await client.get(TOKEN_URL, headers=BROWSER_HEADERS)
-    resp.raise_for_status()
-    token = resp.json()
-    if isinstance(token, str):
-        token = token.strip('"')
-    return token
-
-
 async def cotizar_interseguro(perfil: Perfil) -> Cotizacion:
+    payload = {
+        "api_id": "6902431292ec24791f84124b",
+        "product": "VIDACASH",
+        "body": {
+            "producto": "VIDA_CASH_DEVOLUCION",
+            "parametros": {
+                "edad_actuarial": perfil.edad,
+                "periodo_vigencia": perfil.vigencia_anios,
+                "periodo_pago_primas": perfil.vigencia_anios,
+                "suma_asegurada": int(perfil.suma_asegurada_pen),
+                "sexo": "M" if perfil.sexo.upper() == "M" else "F",
+                "porcentaje_devolucion": PCT_DEVOLUCION,
+            },
+            "document": DNI_FICTICIO,
+        },
+    }
+
     try:
-        async with httpx.AsyncClient(timeout=25) as client:
-            # Paso 1: token JWT
-            token = await _get_token(client)
-
-            # Paso 2: cotizar directamente
-            headers = {
-                **BROWSER_HEADERS,
-                "content-type": "application/json",
-                "authorization": f"Bearer {token}",
-            }
-            payload = {
-                "api_id": "6902431292ec24791f84124b",
-                "product": "VIDACASH",
-                "body": {
-                    "producto": "VIDA_CASH_DEVOLUCION",
-                    "parametros": {
-                        "edad_actuarial": perfil.edad,
-                        "periodo_vigencia": perfil.vigencia_anios,
-                        "periodo_pago_primas": perfil.vigencia_anios,
-                        "suma_asegurada": int(perfil.suma_asegurada_pen),
-                        "sexo": "M" if perfil.sexo.upper() == "M" else "F",
-                        "porcentaje_devolucion": PCT_DEVOLUCION,
-                    },
-                    "document": DNI_FICTICIO,
-                },
-            }
-
-            resp = await client.post(GATEWAY_URL, json=payload, headers=headers)
+        async with httpx.AsyncClient(timeout=25, headers=HEADERS) as client:
+            resp = await client.post(GATEWAY_URL, json=payload)
             resp.raise_for_status()
             data = resp.json()
 
