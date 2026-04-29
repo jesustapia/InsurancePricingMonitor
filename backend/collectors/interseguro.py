@@ -1,22 +1,15 @@
 """
 Collector de Interseguro — Vida Cash Devolución.
 
-Flujo real (3 pasos):
+Flujo simplificado (2 pasos):
   1. GET token JWT  → token_generate_prod
-  2. GET datos cliente → client_data_prod (valida DNI ficticio)
-  3. POST cotización → data_gateway_prod/gateway
-
-El token JWT expira y se renueva en cada ejecución.
-DNI ficticio: 999999999 (registrado previamente en Interseguro).
+  2. POST cotización → data_gateway_prod/gateway con Bearer token
 """
 import httpx
-import uuid
-from datetime import datetime
 from core.models import Cotizacion, Perfil
 
 BASE_URL       = "https://us-east4-interseguro-vida.cloudfunctions.net"
 TOKEN_URL      = f"{BASE_URL}/token_generate_prod?product=VIDACASH&channel=WE"
-CLIENT_URL     = f"{BASE_URL}/client_data_prod/data/999999999?product=VIDACASH"
 GATEWAY_URL    = f"{BASE_URL}/data_gateway_prod/gateway"
 
 COMPETIDOR     = "Interseguro"
@@ -41,34 +34,21 @@ BROWSER_HEADERS = {
 
 
 async def _get_token(client: httpx.AsyncClient) -> str:
-    """Obtiene JWT token fresco."""
     resp = await client.get(TOKEN_URL, headers=BROWSER_HEADERS)
     resp.raise_for_status()
     token = resp.json()
-    # El token viene como string JSON con comillas
     if isinstance(token, str):
         token = token.strip('"')
     return token
 
 
-async def _get_client_data(client: httpx.AsyncClient, token: str) -> dict:
-    """Valida el DNI ficticio y obtiene datos del cliente."""
-    headers = {**BROWSER_HEADERS, "authorization": f"Bearer {token}"}
-    resp = await client.get(CLIENT_URL, headers=headers)
-    resp.raise_for_status()
-    return resp.json()
-
-
 async def cotizar_interseguro(perfil: Perfil) -> Cotizacion:
     try:
         async with httpx.AsyncClient(timeout=25) as client:
-            # Paso 1: obtener token JWT
+            # Paso 1: token JWT
             token = await _get_token(client)
 
-            # Paso 2: validar cliente (necesario para que el gateway acepte)
-            await _get_client_data(client, token)
-
-            # Paso 3: cotizar
+            # Paso 2: cotizar directamente
             headers = {
                 **BROWSER_HEADERS,
                 "content-type": "application/json",
